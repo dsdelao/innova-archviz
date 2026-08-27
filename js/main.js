@@ -1,201 +1,277 @@
-// ── Datos de los modelos ──────────────────────────────────────────────────────
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
 const MODELS = [
-    {
-        name: 'Casa Moderna',
-        description: 'Diseno contemporaneo con grandes ventanales, techos planos y espacios abiertos. Ideal para terrenos amplios.',
-        src: './assets/modelos/casa_moderna.glb',
-    },
-    {
-        name: 'Casa Rustica',
-        description: 'Estilo colonial con acabados en madera y piedra natural. Perfecta para entornos campestres o suburbanos.',
-        src: './assets/modelos/casa_rustica.glb',
-    },
-    {
-        name: 'Casa Minimalista',
-        description: 'Lineas puras, paleta neutra y maximo aprovechamiento de luz natural. Elegancia en cada detalle.',
-        src: './assets/modelos/casa_minimalista.glb',
-    },
+    { name: 'Casa Moderna', desc: 'Diseño contemporáneo con grandes ventanales y espacios abiertos.', src: './assets/modelos/casa_moderna.glb' },
+    { name: 'Casa Rústica', desc: 'Estilo colonial con acabados en madera y piedra natural.', src: './assets/modelos/casa_rustica.glb' },
+    { name: 'Casa Minimalista', desc: 'Líneas puras, paleta neutra y máxima luz natural.', src: './assets/modelos/casa_minimalista.glb' },
 ];
 
-// ── Referencias DOM ───────────────────────────────────────────────────────────
-const startScreen = document.getElementById('start-screen');
-const modelScreen = document.getElementById('model-screen');
-const arContainer = document.getElementById('ar-container');
-const startButton = document.getElementById('start-button');
-const backBtn = document.getElementById('back-btn');
-const arButton = document.getElementById('ar-button');
-const arFallbackNote = document.getElementById('ar-fallback-note');
+const $ = (id) => document.getElementById(id);
+const startScreen = $('start-screen');
+const modelScreen = $('model-screen');
+const arScreen = $('ar-screen');
+const arContainer = $('ar-container');
+const startButton = $('start-button');
+const backButton = $('back-btn');
+const arButton = $('ar-button');
+const arFallbackNote = $('ar-fallback-note');
+const carouselTrack = $('carousel-track');
+const prevButton = $('prev-btn');
+const nextButton = $('next-btn');
+const dotsContainer = $('dots-container');
+const modelName = $('model-name');
+const modelDescription = $('model-desc');
+const currentIndex = $('current-index');
+const totalModels = $('total-models');
+const arModel = $('ar-model');
+const arExitButton = $('ar-exit-btn');
+const arTutorialText = $('ar-tutorial-text');
+const arStatusDot = $('ar-status-dot');
+const arModelName = $('ar-model-name');
 
-const arModel = document.getElementById('ar-model');
-const carouselTrack = document.getElementById('carousel-track');
-const prevBtn = document.getElementById('prev-btn');
-const nextBtn = document.getElementById('next-btn');
-const dotsContainer = document.getElementById('dots-container');
-const modelNameEl = document.getElementById('model-name');
-const modelDescEl = document.getElementById('model-desc');
-const currentIndexEl = document.getElementById('current-index');
-const totalModelsEl = document.getElementById('total-models');
-
-// ── Estado ───────────────────────────────────────────────────────────────────
 let currentSlide = 0;
-let arSupported = false;
+let webXRSupported = false;
+let renderer;
+let scene;
+let camera;
+let reticle;
+let activeModel;
+let xrSession;
+let hitTestSource = null;
+let hitTestSourceRequested = false;
+let stableFrames = 0;
+const STABLE_THRESHOLD = 12;
+const loadedModels = new Set([0]);
 
-// ── Deteccion de capacidades AR ──────────────────────────────────────────────
-async function detectAR() {
-    if (navigator.xr) {
-        try {
-            arSupported = await navigator.xr.isSessionSupported('immersive-ar');
-        } catch (e) {
-            arSupported = false;
-        }
-    }
-
-    if (!arSupported) {
-        arButton.textContent = 'Ver en 3D';
-        arButton.querySelector('svg').style.display = 'none';
-        if (arFallbackNote) arFallbackNote.style.display = 'block';
-    }
-
-    console.log(`AR soportado: ${arSupported}`);
+function show(element) {
+    element.hidden = false;
 }
 
-// ── Lazy loading de modelos ──────────────────────────────────────────────────
-const loadedModels = new Set();
+function hide(element) {
+    element.hidden = true;
+}
+
+async function detectCapabilities() {
+    try {
+        webXRSupported = Boolean(navigator.xr) && await navigator.xr.isSessionSupported('immersive-ar');
+    } catch {
+        webXRSupported = false;
+    }
+
+    // En iPhone se conserva Model Viewer / Quick Look. En Android no se intenta abrir
+    // Scene Viewer/ARCore: la ruta preferida es WebXR con hit-test.
+    if (!webXRSupported && !/iPad|iPhone|iPod/.test(navigator.userAgent)) {
+        arButton.querySelector('span').textContent = 'Ver en 3D';
+        arFallbackNote.hidden = false;
+    }
+}
 
 function loadModel(index) {
     if (loadedModels.has(index)) return;
-
-    const slide = carouselTrack.children[index];
-    if (!slide) return;
-
-    const viewer = slide.querySelector('model-viewer');
-    if (viewer && MODELS[index] && !viewer.getAttribute('src')) {
+    const viewer = carouselTrack.children[index]?.querySelector('model-viewer');
+    if (viewer) {
         viewer.setAttribute('src', MODELS[index].src);
         loadedModels.add(index);
-        console.log(`Modelo ${index} cargado: ${MODELS[index].name}`);
     }
 }
 
-// ── Inicializar carrusel ──────────────────────────────────────────────────────
-totalModelsEl.textContent = MODELS.length;
-
-// Cargar primer modelo inmediatamente
-loadModel(0);
-
-// Crear dots
-MODELS.forEach((_, i) => {
-    const dot = document.createElement('button');
-    dot.classList.add('dot');
-    if (i === 0) dot.classList.add('active');
-    dot.setAttribute('aria-label', `Ir al modelo ${i + 1}`);
-    dot.addEventListener('click', () => goToSlide(i));
-    dotsContainer.appendChild(dot);
-});
-
-function updateCarouselUI() {
-    // Mover track
+function updateCarousel() {
     carouselTrack.style.transform = `translateX(-${currentSlide * 100}%)`;
+    modelName.textContent = MODELS[currentSlide].name;
+    modelDescription.textContent = MODELS[currentSlide].desc;
+    currentIndex.textContent = currentSlide + 1;
+    prevButton.disabled = currentSlide === 0;
+    nextButton.disabled = currentSlide === MODELS.length - 1;
+    [...dotsContainer.children].forEach((dot, index) => dot.classList.toggle('active', index === currentSlide));
 
-    // Texto
-    modelNameEl.textContent = MODELS[currentSlide].name;
-    modelDescEl.textContent = MODELS[currentSlide].description;
-
-    // Contador
-    currentIndexEl.textContent = currentSlide + 1;
-
-    // Dots
-    document.querySelectorAll('.dot').forEach((d, i) => {
-        d.classList.toggle('active', i === currentSlide);
-    });
-
-    // Botones prev/next
-    prevBtn.disabled = currentSlide === 0;
-    nextBtn.disabled = currentSlide === MODELS.length - 1;
-
-    // Lazy load: cargar modelo anterior, actual y siguiente
-    if (currentSlide > 0) loadModel(currentSlide - 1);
-    loadModel(currentSlide);
-    if (currentSlide < MODELS.length - 1) loadModel(currentSlide + 1);
+    [currentSlide - 1, currentSlide, currentSlide + 1]
+        .filter((index) => index >= 0 && index < MODELS.length)
+        .forEach(loadModel);
 }
 
 function goToSlide(index) {
     currentSlide = Math.max(0, Math.min(index, MODELS.length - 1));
-    updateCarouselUI();
+    updateCarousel();
 }
 
-prevBtn.addEventListener('click', () => goToSlide(currentSlide - 1));
-nextBtn.addEventListener('click', () => goToSlide(currentSlide + 1));
+function initializeCarousel() {
+    totalModels.textContent = MODELS.length;
+    MODELS.forEach((_, index) => {
+        const dot = document.createElement('button');
+        dot.type = 'button';
+        dot.className = 'dot';
+        dot.setAttribute('aria-label', `Ir al modelo ${index + 1}`);
+        dot.addEventListener('click', () => goToSlide(index));
+        dotsContainer.appendChild(dot);
+    });
+    updateCarousel();
+}
 
-// ── Swipe tactil ─────────────────────────────────────────────────────────────
-let touchStartX = 0;
-let touchEndX = 0;
+function buildReticle() {
+    const group = new THREE.Group();
+    group.matrixAutoUpdate = false;
+    const material = (opacity) => new THREE.MeshBasicMaterial({
+        color: 0xc8a96e, side: THREE.DoubleSide, transparent: true, opacity,
+    });
+    const outer = new THREE.Mesh(new THREE.RingGeometry(0.12, 0.14, 32).rotateX(-Math.PI / 2), material(0.7));
+    outer.name = 'outer';
+    const inner = new THREE.Mesh(new THREE.RingGeometry(0.04, 0.045, 24).rotateX(-Math.PI / 2), material(0.5));
+    inner.name = 'inner';
+    const dot = new THREE.Mesh(new THREE.CircleGeometry(0.015, 16).rotateX(-Math.PI / 2), material(1));
+    dot.position.y = 0.001;
+    group.add(outer, inner, dot);
+    return group;
+}
 
-carouselTrack.addEventListener('touchstart', e => {
-    touchStartX = e.changedTouches[0].screenX;
-}, { passive: true });
+function setReticleState(locked) {
+    const color = locked ? 0x5ee6c8 : 0xc8a96e;
+    reticle.getObjectByName('outer').material.color.setHex(color);
+    reticle.getObjectByName('inner').material.color.setHex(color);
+    arStatusDot.classList.toggle('locked', locked);
+    arTutorialText.textContent = locked
+        ? 'Superficie detectada — toca para colocar'
+        : 'Mueve tu cámara para escanear la superficie';
+}
 
-carouselTrack.addEventListener('touchend', e => {
-    touchEndX = e.changedTouches[0].screenX;
-    const diff = touchStartX - touchEndX;
-    if (Math.abs(diff) > 40) {
-        diff > 0 ? goToSlide(currentSlide + 1) : goToSlide(currentSlide - 1);
-    }
-}, { passive: true });
+async function initializeWebXR() {
+    if (renderer) return;
+    scene = new THREE.Scene();
+    camera = new THREE.PerspectiveCamera();
+    renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.xr.enabled = true;
+    arScreen.prepend(renderer.domElement);
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 1.2));
+    const light = new THREE.DirectionalLight(0xffffff, 0.8);
+    light.position.set(0.5, 1, 0.25);
+    scene.add(light);
+    reticle = buildReticle();
+    reticle.visible = false;
+    scene.add(reticle);
 
-// ── Navegacion entre pantallas ────────────────────────────────────────────────
-startButton.addEventListener('click', () => {
-    startScreen.style.display = 'none';
-    modelScreen.style.display = 'flex';
-    updateCarouselUI();
-});
-
-backBtn.addEventListener('click', () => {
-    modelScreen.style.display = 'none';
-    startScreen.style.display = 'flex';
-});
-
-// ── Activar AR ────────────────────────────────────────────────────────────────
-arButton.addEventListener('click', async () => {
-    const activeModel = MODELS[currentSlide];
-    arModel.setAttribute('src', activeModel.src);
-
-    modelScreen.style.display = 'none';
-    arContainer.style.display = 'flex';
-
-    // Activar AR en model-viewer
-    if (arModel.activateAR) {
-        try {
-            await arModel.activateAR();
-        } catch (err) {
-            console.warn('No se pudo activar AR:', err);
-            // Fallback: mostrar visor 3D
-            arContainer.style.display = 'none';
-            modelScreen.style.display = 'flex';
-        }
-    }
-});
-
-// ── Eventos del AR model-viewer ───────────────────────────────────────────────
-if (arModel) {
-    arModel.addEventListener('ar-status', e => {
-        console.log('Estado AR:', e.detail.status);
-
-        if (e.detail.status === 'not-presenting' || e.detail.status === 'session-ended') {
-            arContainer.style.display = 'none';
-            modelScreen.style.display = 'flex';
-        }
+    window.addEventListener('resize', () => {
+        if (!renderer) return;
+        renderer.setSize(window.innerWidth, window.innerHeight);
     });
 }
 
-// ── Cleanup ──────────────────────────────────────────────────────────────────
-window.addEventListener('beforeunload', () => {
-    // model-viewer maneja su propia limpieza
+async function loadARModel() {
+    if (activeModel) scene.remove(activeModel);
+    const loader = new GLTFLoader();
+    const gltf = await loader.loadAsync(MODELS[currentSlide].src);
+    activeModel = gltf.scene;
+    activeModel.visible = false;
+    activeModel.matrixAutoUpdate = false;
+    scene.add(activeModel);
+}
+
+function onXRFrame(_time, frame) {
+    const session = renderer.xr.getSession();
+    const referenceSpace = renderer.xr.getReferenceSpace();
+    if (!hitTestSourceRequested) {
+        hitTestSourceRequested = true;
+        session.requestReferenceSpace('viewer')
+            .then((space) => session.requestHitTestSource({ space }))
+            .then((source) => { hitTestSource = source; })
+            .catch(() => { arTutorialText.textContent = 'No fue posible detectar superficies en este dispositivo.'; });
+    }
+    if (hitTestSource) {
+        const hit = frame.getHitTestResults(hitTestSource)[0];
+        const pose = hit?.getPose(referenceSpace);
+        if (pose) {
+            reticle.visible = true;
+            reticle.matrix.fromArray(pose.transform.matrix);
+            stableFrames = Math.min(stableFrames + 1, STABLE_THRESHOLD);
+            if (stableFrames === STABLE_THRESHOLD) setReticleState(true);
+        } else {
+            reticle.visible = false;
+            stableFrames = 0;
+            setReticleState(false);
+        }
+    }
+    renderer.render(scene, camera);
+}
+
+function placeModel() {
+    if (!activeModel || !reticle.visible || stableFrames < STABLE_THRESHOLD) return;
+    activeModel.visible = true;
+    activeModel.matrix.copy(reticle.matrix);
+    arTutorialText.textContent = 'Modelo colocado — toca una superficie para reposicionarlo';
+}
+
+function endWebXR() {
+    hitTestSource?.cancel();
+    hitTestSource = null;
+    hitTestSourceRequested = false;
+    stableFrames = 0;
+    renderer?.setAnimationLoop(null);
+    hide(arScreen);
+    show(modelScreen);
+    xrSession = null;
+}
+
+async function startWebXR() {
+    try {
+        hide(modelScreen);
+        show(arScreen);
+        arModelName.textContent = MODELS[currentSlide].name;
+        arTutorialText.textContent = 'Cargando modelo…';
+        await initializeWebXR();
+        await loadARModel();
+        xrSession = await navigator.xr.requestSession('immersive-ar', {
+            requiredFeatures: ['hit-test'],
+            optionalFeatures: ['dom-overlay'],
+            domOverlay: { root: $('ar-overlay') },
+        });
+        xrSession.addEventListener('end', endWebXR, { once: true });
+        xrSession.addEventListener('select', placeModel);
+        renderer.xr.setReferenceSpaceType('local');
+        await renderer.xr.setSession(xrSession);
+        reticle.visible = false;
+        setReticleState(false);
+        renderer.setAnimationLoop(onXRFrame);
+    } catch (error) {
+        console.error('No se pudo iniciar WebXR:', error);
+        arTutorialText.textContent = 'No se pudo iniciar AR. Revisa permisos de cámara y HTTPS.';
+        if (xrSession) await xrSession.end();
+        else {
+            hide(arScreen);
+            show(modelScreen);
+        }
+    }
+}
+
+function openModelViewer() {
+    arModel.setAttribute('src', MODELS[currentSlide].src);
+    hide(modelScreen);
+    show(arContainer);
+    if (/iPad|iPhone|iPod/.test(navigator.userAgent) && arModel.activateAR) {
+        arModel.activateAR().catch(() => { /* El visor 3D permanece disponible. */ });
+    }
+}
+
+startButton.addEventListener('click', () => { hide(startScreen); show(modelScreen); updateCarousel(); });
+backButton.addEventListener('click', () => { hide(modelScreen); show(startScreen); });
+prevButton.addEventListener('click', () => goToSlide(currentSlide - 1));
+nextButton.addEventListener('click', () => goToSlide(currentSlide + 1));
+arButton.addEventListener('click', () => webXRSupported ? startWebXR() : openModelViewer());
+arExitButton.addEventListener('click', () => xrSession?.end());
+arModel.addEventListener('ar-status', ({ detail }) => {
+    if (detail.status === 'not-presenting' || detail.status === 'session-ended') {
+        hide(arContainer);
+        show(modelScreen);
+    }
 });
 
-// ── Inicializacion ────────────────────────────────────────────────────────────
-detectAR();
+let touchStartX = 0;
+carouselTrack.addEventListener('touchstart', (event) => { touchStartX = event.changedTouches[0].screenX; }, { passive: true });
+carouselTrack.addEventListener('touchend', (event) => {
+    if (Math.abs(touchStartX - event.changedTouches[0].screenX) > 40) {
+        goToSlide(currentSlide + (touchStartX > event.changedTouches[0].screenX ? 1 : -1));
+    }
+}, { passive: true });
 
-// Dispositivo
-const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-const isAndroid = /Android/.test(navigator.userAgent);
-console.log(`Dispositivo: ${isIOS ? 'iOS' : isAndroid ? 'Android' : 'Desktop'}`);
+initializeCarousel();
+detectCapabilities();
