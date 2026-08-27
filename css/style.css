@@ -19,6 +19,9 @@
 
 /* ── Base ────────────────────────────────────────────────────────────────── */
 html, body { height: 100%; }
+[hidden] {
+    display: none !important;
+}
 
 body {
     font-family: 'DM Sans', sans-serif;
