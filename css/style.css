@@ -5,7 +5,7 @@
 
 /* ── Variables ───────────────────────────────────────────────────────────── */
 :root {
-    --bg-dark:    #0d0f14;
+    --bg-dark:    #314f98;
     --bg-card:    #161920;
     --accent:     #c8a96e;      /* dorado cálido */
     --accent-dim: rgba(200,169,110,.15);
@@ -19,8 +19,6 @@
 
 /* ── Base ────────────────────────────────────────────────────────────────── */
 html, body { height: 100%; }
-
-[hidden] { display: none !important; }
 
 body {
     font-family: 'DM Sans', sans-serif;
@@ -427,7 +425,7 @@ body {
 #ar-tutorial,
 .ar-counter,
 #ar-exit-btn {
-    background: rgba(21, 70, 195, 0.78);
+    background: rgba(13, 15, 20, .78);
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
 }
