@@ -427,7 +427,7 @@ body {
 #ar-tutorial,
 .ar-counter,
 #ar-exit-btn {
-    background: rgba(13, 15, 20, .78);
+    background: rgba(21, 70, 195, 0.78);
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
 }
