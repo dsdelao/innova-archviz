@@ -134,7 +134,7 @@ function setReticleState(locked) {
         : 'Mueve tu cámara para escanear la superficie';
 }
 
-async function initializeWebXR() {
+function initializeWebXR() {
     if (renderer) return;
     scene = new THREE.Scene();
     camera = new THREE.PerspectiveCamera();
@@ -213,13 +213,18 @@ function endWebXR() {
 }
 
 async function startWebXR() {
+    const buttonLabel = arButton.querySelector('span');
     try {
         hide(modelScreen);
         show(arScreen);
         arModelName.textContent = MODELS[currentSlide].name;
-        arTutorialText.textContent = 'Cargando modelo…';
-        await initializeWebXR();
-        await loadARModel();
+        arTutorialText.textContent = 'Solicitando permiso de cámara…';
+        buttonLabel.textContent = 'Abriendo AR…';
+        initializeWebXR();
+
+        // Debe ejecutarse directamente desde el clic del usuario. Si esperamos a
+        // descargar el GLB antes de esta línea, Chrome puede rechazar WebXR sin
+        // mostrar el diálogo de permiso de cámara.
         xrSession = await navigator.xr.requestSession('immersive-ar', {
             requiredFeatures: ['hit-test'],
             optionalFeatures: ['dom-overlay'],
@@ -232,14 +237,19 @@ async function startWebXR() {
         reticle.visible = false;
         setReticleState(false);
         renderer.setAnimationLoop(onXRFrame);
+        arTutorialText.textContent = 'Cargando modelo…';
+        await loadARModel();
     } catch (error) {
         console.error('No se pudo iniciar WebXR:', error);
-        arTutorialText.textContent = 'No se pudo iniciar AR. Revisa permisos de cámara y HTTPS.';
+        arFallbackNote.textContent = 'No se pudo iniciar AR. Permite la cámara en Chrome y verifica que el sitio use HTTPS.';
+        arFallbackNote.hidden = false;
         if (xrSession) await xrSession.end();
         else {
             hide(arScreen);
             show(modelScreen);
         }
+    } finally {
+        buttonLabel.textContent = 'Ver en AR';
     }
 }
 
