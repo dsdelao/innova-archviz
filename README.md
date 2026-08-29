@@ -4,7 +4,7 @@ Aplicacion web de Realidad Augmentada para visualizar modelos 3D de casas sobre 
 
 ## Demo
 
-Visita la URL publica del proyecto (consultar al administrador).
+Visita la URL publica del proyecto: https://ar.innova-tech.com.mx/ .
 
 ## Funcionalidades
 
