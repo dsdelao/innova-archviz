@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 
 const MODELS = [
     { name: 'Casa Moderna', desc: 'Diseño contemporáneo con grandes ventanales y espacios abiertos.', src: './assets/modelos/casa_moderna.glb' },
@@ -43,6 +44,11 @@ let hitTestSourceRequested = false;
 let stableFrames = 0;
 const STABLE_THRESHOLD = 12;
 const loadedModels = new Set([0]);
+const dracoLoader = new DRACOLoader();
+
+// Los archivos .glb del proyecto están comprimidos con Draco. Model Viewer lo
+// resuelve internamente, pero Three.js necesita este decodificador para WebXR.
+dracoLoader.setDecoderPath('https://unpkg.com/three@0.160.0/examples/jsm/libs/draco/gltf/');
 
 function show(element) {
     element.hidden = false;
@@ -160,6 +166,7 @@ function initializeWebXR() {
 async function loadARModel() {
     if (activeModel) scene.remove(activeModel);
     const loader = new GLTFLoader();
+    loader.setDRACOLoader(dracoLoader);
     const gltf = await loader.loadAsync(MODELS[currentSlide].src);
     activeModel = gltf.scene;
     activeModel.visible = false;
