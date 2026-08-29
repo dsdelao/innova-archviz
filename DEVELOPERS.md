@@ -30,6 +30,15 @@ git push origin main
 
 El servidor revisa GitHub cada minuto y despliega los cambios automaticamente.
 
+### Cache-busting automatico
+
+Al desplegar, el servidor genera versiones con hash de los archivos de estilo y script
+(`style.abc12345.css`, `main.abc12345.js`) y actualiza `index.html` para que los referencie.
+Esto evita que Cloudflare siga sirviendo versiones viejas cacheadas.
+
+**No es necesario que hagas nada**: el proceso es automatico. Solo edita `css/style.css`
+y `js/main.js` como siempre y haz push.
+
 ## Estructura del Proyecto
 
 ```
@@ -77,4 +86,6 @@ Los modelos 3D estan comprimidos con Draco.
 ### Los cambios no se despliegan
 - Verificar que el push a GitHub fue exitoso
 - Esperar hasta 1 minuto (el servidor revisa periodicamente)
+- Verificar en el servidor directo: `http://192.168.1.68/` (si aqui esta bien pero en el subdominio no, el cache de Cloudflare esta detras)
+- Si el cambio es de CSS/JS y no se ve en el subdominio: recargar con fuerza (Ctrl+Shift+R) o pedir al administrador purgar el cache
 - Preguntar al administrador si hay problemas
