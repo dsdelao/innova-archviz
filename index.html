@@ -46,7 +46,7 @@
             </div>
         </section>
     </main>
-    <section id="ar-screen" aria-label="Experiencia de realidad aumentada" hidden><div id="ar-overlay"><div id="ar-tutorial"><span id="ar-status-dot"></span><span id="ar-tutorial-text">Mueve tu cámara para escanear la superficie</span></div><div class="ar-counter"><span id="ar-model-name">Casa Moderna</span></div><button id="ar-exit-btn" type="button">Salir de AR</button></div></section>
+    <section id="ar-screen" aria-label="Experiencia de realidad aumentada" hidden><div id="ar-overlay"><div id="ar-gesture-layer" aria-hidden="true"></div><div id="ar-tutorial"><span id="ar-status-dot"></span><span id="ar-tutorial-text">Mueve tu cámara para escanear la superficie</span></div><div class="ar-counter"><span id="ar-model-name">Casa Moderna</span></div><button id="ar-exit-btn" type="button">Salir de AR</button></div></section>
     <section id="ar-container" class="screen" hidden><div class="ar-content"><model-viewer id="ar-model" camera-controls ar ar-modes="quick-look" environment-image="neutral" shadow-intensity="1.5" exposure="1" shadow-softness="0.8" alt="Modelo 3D en realidad aumentada"><div class="progress-bar" slot="progress-bar"><div class="update-bar"></div></div></model-viewer></div></section>
     <script type="module" src="./js/main.js"></script>
 </body>

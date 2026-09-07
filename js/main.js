@@ -30,6 +30,7 @@ const arExitButton = $('ar-exit-btn');
 const arTutorialText = $('ar-tutorial-text');
 const arStatusDot = $('ar-status-dot');
 const arModelName = $('ar-model-name');
+const arGestureLayer = $('ar-gesture-layer');
 
 let currentSlide = 0;
 let webXRSupported = false;
@@ -37,14 +38,20 @@ let renderer;
 let scene;
 let camera;
 let reticle;
-let activeModel;
+let modelAnchor;
+let modelContent;
 let xrSession;
 let hitTestSource = null;
 let hitTestSourceRequested = false;
 let stableFrames = 0;
 const STABLE_THRESHOLD = 12;
+const BASE_MODEL_SCALE = 0.5;
+const MIN_USER_SCALE = 0.25;
+const MAX_USER_SCALE = 4;
 const loadedModels = new Set([0]);
 const dracoLoader = new DRACOLoader();
+let userScale = 1;
+let gestureStart = null;
 
 // Los archivos .glb del proyecto están comprimidos con Draco. Model Viewer lo
 // resuelve internamente, pero Three.js necesita este decodificador para WebXR.
@@ -164,14 +171,25 @@ function initializeWebXR() {
 }
 
 async function loadARModel() {
-    if (activeModel) scene.remove(activeModel);
+    if (modelAnchor) scene.remove(modelAnchor);
     const loader = new GLTFLoader();
     loader.setDRACOLoader(dracoLoader);
     const gltf = await loader.loadAsync(MODELS[currentSlide].src);
-    activeModel = gltf.scene;
-    activeModel.visible = false;
-    activeModel.matrixAutoUpdate = false;
-    scene.add(activeModel);
+    modelContent = gltf.scene;
+    modelAnchor = new THREE.Group();
+    modelAnchor.matrixAutoUpdate = false;
+    modelAnchor.visible = false;
+    modelAnchor.add(modelContent);
+    userScale = 1;
+    applyModelScale();
+    scene.add(modelAnchor);
+}
+
+function applyModelScale() {
+    if (!modelContent) return;
+    modelContent.scale.setScalar(BASE_MODEL_SCALE * userScale);
+    modelContent.updateMatrix();
+    modelContent.matrixWorldNeedsUpdate = true;
 }
 
 function onXRFrame(_time, frame) {
@@ -190,22 +208,77 @@ function onXRFrame(_time, frame) {
         if (pose) {
             reticle.visible = true;
             reticle.matrix.fromArray(pose.transform.matrix);
+            reticle.matrixWorldNeedsUpdate = true;
+            const wasLocked = stableFrames >= STABLE_THRESHOLD;
             stableFrames = Math.min(stableFrames + 1, STABLE_THRESHOLD);
-            if (stableFrames === STABLE_THRESHOLD) setReticleState(true);
+            if (!wasLocked && stableFrames === STABLE_THRESHOLD) setReticleState(true);
         } else {
+            const wasLocked = stableFrames >= STABLE_THRESHOLD;
             reticle.visible = false;
             stableFrames = 0;
-            setReticleState(false);
+            if (wasLocked) setReticleState(false);
         }
     }
     renderer.render(scene, camera);
 }
 
 function placeModel() {
-    if (!activeModel || !reticle.visible || stableFrames < STABLE_THRESHOLD) return;
-    activeModel.visible = true;
-    activeModel.matrix.copy(reticle.matrix);
-    arTutorialText.textContent = 'Modelo colocado — toca una superficie para reposicionarlo';
+    if (!modelAnchor || !reticle.visible || stableFrames < STABLE_THRESHOLD) return;
+    modelAnchor.visible = true;
+    modelAnchor.matrix.copy(reticle.matrix);
+    modelAnchor.matrixWorldNeedsUpdate = true;
+    arTutorialText.textContent = 'Modelo colocado — apunta la retícula y toca para moverlo. Usa dos dedos para escalar.';
+}
+
+function touchDistance(firstTouch, secondTouch) {
+    return Math.hypot(firstTouch.clientX - secondTouch.clientX, firstTouch.clientY - secondTouch.clientY);
+}
+
+function resetARGesture() {
+    gestureStart = null;
+}
+
+function handleARTouchStart(event) {
+    const { touches } = event;
+    if (touches.length === 2 && modelContent && modelAnchor?.visible) {
+        event.preventDefault();
+        gestureStart = {
+            type: 'pinch',
+            distance: touchDistance(touches[0], touches[1]),
+            scale: userScale,
+        };
+        return;
+    }
+
+    if (touches.length === 1) {
+        gestureStart = {
+            type: 'tap',
+            x: touches[0].clientX,
+            y: touches[0].clientY,
+            time: performance.now(),
+        };
+    }
+}
+
+function handleARTouchMove(event) {
+    if (!gestureStart || event.touches.length !== 2 || gestureStart.type !== 'pinch') return;
+    event.preventDefault();
+    const ratio = touchDistance(event.touches[0], event.touches[1]) / gestureStart.distance;
+    userScale = THREE.MathUtils.clamp(gestureStart.scale * ratio, MIN_USER_SCALE, MAX_USER_SCALE);
+    applyModelScale();
+    arTutorialText.textContent = `Escala: ${Math.round(BASE_MODEL_SCALE * userScale * 100)}% — separa o junta dos dedos.`;
+}
+
+function handleARTouchEnd(event) {
+    if (!gestureStart || event.touches.length > 0) return;
+    const completedGesture = gestureStart;
+    resetARGesture();
+
+    if (completedGesture.type !== 'tap') return;
+    const elapsed = performance.now() - completedGesture.time;
+    const touch = event.changedTouches[0];
+    const movement = Math.hypot(touch.clientX - completedGesture.x, touch.clientY - completedGesture.y);
+    if (elapsed < 350 && movement < 18) placeModel();
 }
 
 function endWebXR() {
@@ -213,6 +286,7 @@ function endWebXR() {
     hitTestSource = null;
     hitTestSourceRequested = false;
     stableFrames = 0;
+    resetARGesture();
     renderer?.setAnimationLoop(null);
     hide(arScreen);
     show(modelScreen);
@@ -275,6 +349,10 @@ prevButton.addEventListener('click', () => goToSlide(currentSlide - 1));
 nextButton.addEventListener('click', () => goToSlide(currentSlide + 1));
 arButton.addEventListener('click', () => webXRSupported ? startWebXR() : openModelViewer());
 arExitButton.addEventListener('click', () => xrSession?.end());
+arGestureLayer.addEventListener('touchstart', handleARTouchStart, { passive: false });
+arGestureLayer.addEventListener('touchmove', handleARTouchMove, { passive: false });
+arGestureLayer.addEventListener('touchend', handleARTouchEnd, { passive: false });
+arGestureLayer.addEventListener('touchcancel', resetARGesture, { passive: true });
 arModel.addEventListener('ar-status', ({ detail }) => {
     if (detail.status === 'not-presenting' || detail.status === 'session-ended') {
         hide(arContainer);
