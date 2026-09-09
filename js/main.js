@@ -39,6 +39,7 @@ let scene;
 let camera;
 let reticle;
 let modelAnchor;
+let modelTransform;
 let modelContent;
 let xrSession;
 let hitTestSource = null;
@@ -48,6 +49,7 @@ const STABLE_THRESHOLD = 12;
 const BASE_MODEL_SCALE = 0.5;
 const MIN_USER_SCALE = 0.25;
 const MAX_USER_SCALE = 4;
+const ROTATION_SENSITIVITY = 0.012;
 const loadedModels = new Set([0]);
 const dracoLoader = new DRACOLoader();
 let userScale = 1;
@@ -177,19 +179,28 @@ async function loadARModel() {
     const gltf = await loader.loadAsync(MODELS[currentSlide].src);
     modelContent = gltf.scene;
     modelAnchor = new THREE.Group();
+    modelTransform = new THREE.Group();
     modelAnchor.matrixAutoUpdate = false;
     modelAnchor.visible = false;
-    modelAnchor.add(modelContent);
+    modelTransform.add(modelContent);
+    modelAnchor.add(modelTransform);
     userScale = 1;
     applyModelScale();
     scene.add(modelAnchor);
 }
 
 function applyModelScale() {
-    if (!modelContent) return;
-    modelContent.scale.setScalar(BASE_MODEL_SCALE * userScale);
-    modelContent.updateMatrix();
-    modelContent.matrixWorldNeedsUpdate = true;
+    if (!modelTransform) return;
+    modelTransform.scale.setScalar(BASE_MODEL_SCALE * userScale);
+    modelTransform.updateMatrix();
+    modelTransform.matrixWorldNeedsUpdate = true;
+}
+
+function applyModelRotation(rotation) {
+    if (!modelTransform) return;
+    modelTransform.rotation.y = rotation;
+    modelTransform.updateMatrix();
+    modelTransform.matrixWorldNeedsUpdate = true;
 }
 
 function onXRFrame(_time, frame) {
@@ -252,21 +263,35 @@ function handleARTouchStart(event) {
 
     if (touches.length === 1) {
         gestureStart = {
-            type: 'tap',
+            type: 'one-finger',
             x: touches[0].clientX,
             y: touches[0].clientY,
             time: performance.now(),
+            rotation: modelTransform?.rotation.y ?? 0,
         };
     }
 }
 
 function handleARTouchMove(event) {
-    if (!gestureStart || event.touches.length !== 2 || gestureStart.type !== 'pinch') return;
-    event.preventDefault();
-    const ratio = touchDistance(event.touches[0], event.touches[1]) / gestureStart.distance;
-    userScale = THREE.MathUtils.clamp(gestureStart.scale * ratio, MIN_USER_SCALE, MAX_USER_SCALE);
-    applyModelScale();
-    arTutorialText.textContent = `Escala: ${Math.round(BASE_MODEL_SCALE * userScale * 100)}% — separa o junta dos dedos.`;
+    if (!gestureStart) return;
+
+    if (event.touches.length === 2 && gestureStart.type === 'pinch') {
+        event.preventDefault();
+        const ratio = touchDistance(event.touches[0], event.touches[1]) / gestureStart.distance;
+        userScale = THREE.MathUtils.clamp(gestureStart.scale * ratio, MIN_USER_SCALE, MAX_USER_SCALE);
+        applyModelScale();
+        arTutorialText.textContent = `Escala: ${Math.round(BASE_MODEL_SCALE * userScale * 100)}% — separa o junta dos dedos.`;
+        return;
+    }
+
+    if (event.touches.length === 1 && gestureStart.type === 'one-finger' && modelAnchor?.visible) {
+        const deltaX = event.touches[0].clientX - gestureStart.x;
+        if (Math.abs(deltaX) < 8) return;
+        event.preventDefault();
+        gestureStart.type = 'rotate';
+        applyModelRotation(gestureStart.rotation + deltaX * ROTATION_SENSITIVITY);
+        arTutorialText.textContent = 'Rotando modelo — arrastra a la izquierda o derecha.';
+    }
 }
 
 function handleARTouchEnd(event) {
@@ -274,7 +299,12 @@ function handleARTouchEnd(event) {
     const completedGesture = gestureStart;
     resetARGesture();
 
-    if (completedGesture.type !== 'tap') return;
+    if (completedGesture.type === 'rotate') {
+        arTutorialText.textContent = 'Modelo rotado — toca una superficie para moverlo o usa dos dedos para escalar.';
+        return;
+    }
+
+    if (completedGesture.type !== 'one-finger') return;
     const elapsed = performance.now() - completedGesture.time;
     const touch = event.changedTouches[0];
     const movement = Math.hypot(touch.clientX - completedGesture.x, touch.clientY - completedGesture.y);
@@ -312,7 +342,6 @@ async function startWebXR() {
             domOverlay: { root: $('ar-overlay') },
         });
         xrSession.addEventListener('end', endWebXR, { once: true });
-        xrSession.addEventListener('select', placeModel);
         renderer.xr.setReferenceSpaceType('local');
         await renderer.xr.setSession(xrSession);
         reticle.visible = false;
