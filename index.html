@@ -1,9 +1,11 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <meta name="description" content="Visualiza tu futura casa en tamaño real sobre cualquier terreno con Realidad Aumentada — Innova Archviz">
+    <meta name="description"
+        content="Visualiza tu futura casa en tamaño real sobre cualquier terreno con Realidad Aumentada — Innova Archviz">
     <meta name="theme-color" content="#0d0f14">
     <meta property="og:title" content="Innova Archviz — Visualiza tu casa en AR">
     <meta property="og:description" content="Modelos 3D de casas sobre cualquier terreno con Realidad Aumentada.">
@@ -12,42 +14,106 @@
     <title>Innova Archviz — AR Terreno</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap"
+        rel="stylesheet">
     <link rel="stylesheet" href="./css/style.css">
     <script type="importmap">
         {"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}
     </script>
     <script type="module" src="https://unpkg.com/@google/model-viewer@3.5.0/dist/model-viewer.min.js"></script>
 </head>
+
 <body>
     <main>
-        <section id="start-screen" class="screen">
-            <div class="start-content">
-                <span class="brand-tag">Innova Archviz</span>
-                <h1>Tu hogar,<br><em>antes de construirlo.</em></h1>
-                <p>Visualiza tu futura casa sobre cualquier terreno con Realidad Aumentada.</p>
-                <div class="instructions-box"><p class="instr-title">¿Cómo funciona?</p><ol><li><span class="step-num">01</span>Busca una superficie plana</li><li><span class="step-num">02</span>Mueve lentamente tu cámara para escanear</li><li><span class="step-num">03</span>Toca para colocar el modelo</li></ol></div>
-                <button id="start-button" class="primary-btn" type="button"><span>Explorar modelos</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7" /></svg></button>
-                <p class="note">Requiere acceso a la cámara para la experiencia AR.</p>
+        <section id="ar-screen" aria-label="Experiencia de realidad aumentada" hidden>
+            <div id="ar-overlay">
+                <div id="ar-tutorial">
+                    <span id="ar-status-dot"></span>
+                    <span id="ar-tutorial-text">Mueve tu cámara para escanear la superficie</span>
+                </div>
+                <div class="ar-counter"><span id="ar-model-name">Casa Moderna</span></div>
+                <button id="ar-exit-btn" type="button">Salir de AR</button>
             </div>
         </section>
         <section id="model-screen" class="screen" hidden>
-            <div class="carousel-header"><button id="back-btn" class="icon-btn" type="button" aria-label="Volver a la pantalla de inicio"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7" /></svg></button><span class="carousel-counter"><span id="current-index">1</span> / <span id="total-models">3</span></span></div>
-            <div class="carousel-wrapper"><div class="carousel-track" id="carousel-track">
-                <div class="carousel-slide"><model-viewer class="model-viewer-instance" src="./assets/modelos/casa_moderna.glb" camera-controls auto-rotate environment-image="neutral" shadow-intensity="1.5" exposure="1" shadow-softness="0.8" alt="Casa Moderna" interaction-prompt="none"><div class="progress-bar" slot="progress-bar"><div class="update-bar"></div></div></model-viewer></div>
-                <div class="carousel-slide"><model-viewer class="model-viewer-instance" camera-controls auto-rotate environment-image="neutral" shadow-intensity="1.5" exposure="1" shadow-softness="0.8" alt="Casa Rústica" interaction-prompt="none"><div class="progress-bar" slot="progress-bar"><div class="update-bar"></div></div></model-viewer></div>
-                <div class="carousel-slide"><model-viewer class="model-viewer-instance" camera-controls auto-rotate environment-image="neutral" shadow-intensity="1.5" exposure="1" shadow-softness="0.8" alt="Casa Minimalista" interaction-prompt="none"><div class="progress-bar" slot="progress-bar"><div class="update-bar"></div></div></model-viewer></div>
-            </div></div>
+            <div class="carousel-header"><button id="back-btn" class="icon-btn" type="button"
+                    aria-label="Volver a la pantalla de inicio"><svg viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <path d="M19 12H5M12 19l-7-7 7-7" />
+                    </svg></button><span class="carousel-counter"><span id="current-index">1</span> / <span
+                        id="total-models">3</span></span></div>
+            <div class="carousel-wrapper">
+                <div class="carousel-track" id="carousel-track">
+                    <div class="carousel-slide"><model-viewer class="model-viewer-instance"
+                            src="./assets/modelos/casa_moderna.glb" camera-controls auto-rotate
+                            environment-image="neutral" shadow-intensity="1.5" exposure="1" shadow-softness="0.8"
+                            alt="Casa Moderna" interaction-prompt="none">
+                            <div class="progress-bar" slot="progress-bar">
+                                <div class="update-bar"></div>
+                            </div>
+                        </model-viewer></div>
+                    <div class="carousel-slide"><model-viewer class="model-viewer-instance" camera-controls auto-rotate
+                            environment-image="neutral" shadow-intensity="1.5" exposure="1" shadow-softness="0.8"
+                            alt="Casa Rústica" interaction-prompt="none">
+                            <div class="progress-bar" slot="progress-bar">
+                                <div class="update-bar"></div>
+                            </div>
+                        </model-viewer></div>
+                    <div class="carousel-slide"><model-viewer class="model-viewer-instance" camera-controls auto-rotate
+                            environment-image="neutral" shadow-intensity="1.5" exposure="1" shadow-softness="0.8"
+                            alt="Casa Minimalista" interaction-prompt="none">
+                            <div class="progress-bar" slot="progress-bar">
+                                <div class="update-bar"></div>
+                            </div>
+                        </model-viewer></div>
+                </div>
+            </div>
             <div class="model-info-panel">
-                <div class="model-text"><h2 id="model-name">Casa Moderna</h2><p id="model-desc">Diseño contemporáneo con grandes ventanales y espacios abiertos.</p></div>
-                <div class="carousel-nav"><button id="prev-btn" class="nav-btn" type="button" aria-label="Modelo anterior"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M15 18l-6-6 6-6" /></svg></button><div class="dots" id="dots-container" aria-label="Seleccionar modelo"></div><button id="next-btn" class="nav-btn" type="button" aria-label="Siguiente modelo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M9 18l6-6-6-6" /></svg></button></div>
-                <button id="ar-button" class="ar-button" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2" /><path d="M8 21h8M12 17v4" /></svg><span>Ver en AR</span></button>
-                <p id="ar-fallback-note" class="note" hidden>Este dispositivo no soporta AR. Puedes explorar el modelo en 3D.</p>
+                <div class="model-text">
+                    <h2 id="model-name">Casa Moderna</h2>
+                    <p id="model-desc">Diseño contemporáneo con grandes ventanales y espacios abiertos.</p>
+                </div>
+                <div class="carousel-nav"><button id="prev-btn" class="nav-btn" type="button"
+                        aria-label="Modelo anterior"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2.5" aria-hidden="true">
+                            <path d="M15 18l-6-6 6-6" />
+                        </svg></button>
+                    <div class="dots" id="dots-container" aria-label="Seleccionar modelo"></div><button id="next-btn"
+                        class="nav-btn" type="button" aria-label="Siguiente modelo"><svg viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+                            <path d="M9 18l6-6-6-6" />
+                        </svg></button>
+                </div>
+                <button id="ar-button" class="ar-button" type="button"><svg viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <rect x="2" y="3" width="20" height="14" rx="2" />
+                        <path d="M8 21h8M12 17v4" />
+                    </svg><span>Ver en AR</span></button>
+                <p id="ar-fallback-note" class="note" hidden>Este dispositivo no soporta AR. Puedes explorar el modelo
+                    en 3D.</p>
             </div>
         </section>
     </main>
-    <section id="ar-screen" aria-label="Experiencia de realidad aumentada" hidden><div id="ar-overlay"><div id="ar-gesture-layer" aria-hidden="true"></div><div id="ar-tutorial"><span id="ar-status-dot"></span><span id="ar-tutorial-text">Mueve tu cámara para escanear la superficie</span></div><div class="ar-counter"><span id="ar-model-name">Casa Moderna</span></div><button id="ar-exit-btn" type="button">Salir de AR</button></div></section>
-    <section id="ar-container" class="screen" hidden><div class="ar-content"><model-viewer id="ar-model" camera-controls ar ar-modes="quick-look" environment-image="neutral" shadow-intensity="1.5" exposure="1" shadow-softness="0.8" alt="Modelo 3D en realidad aumentada"><div class="progress-bar" slot="progress-bar"><div class="update-bar"></div></div></model-viewer></div></section>
+    <section id="ar-screen" aria-label="Experiencia de realidad aumentada" hidden>
+        <div id="ar-overlay">
+            <div id="ar-gesture-layer" aria-hidden="true"></div>
+            <div id="ar-tutorial"><span id="ar-status-dot"></span><span id="ar-tutorial-text">Mueve tu cámara para
+                    escanear la superficie</span></div>
+            <div class="ar-counter"><span id="ar-model-name">Casa Moderna</span></div><button id="ar-exit-btn"
+                type="button">Salir de AR</button>
+        </div>
+    </section>
+    <section id="ar-container" class="screen" hidden>
+        <div class="ar-content"><model-viewer id="ar-model" camera-controls ar ar-modes="quick-look"
+                environment-image="neutral" shadow-intensity="1.5" exposure="1" shadow-softness="0.8"
+                alt="Modelo 3D en realidad aumentada">
+                <div class="progress-bar" slot="progress-bar">
+                    <div class="update-bar"></div>
+                </div>
+            </model-viewer></div>
+    </section>
     <script type="module" src="./js/main.js"></script>
 </body>
+
 </html>

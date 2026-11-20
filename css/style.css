@@ -425,13 +425,7 @@ body {
     padding: max(20px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom));
 }
 
-#ar-gesture-layer {
-    position: absolute;
-    inset: 0;
-    z-index: 0;
-    pointer-events: auto;
-    touch-action: none;
-}
+
 
 #ar-tutorial,
 .ar-counter,
