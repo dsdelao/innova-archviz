@@ -25,7 +25,7 @@ let webXR = false;
 
 // ── WebXR state ────────────────────────────────────────────────────────────
 const xr = { renderer: null, scene: null, camera: null, reticle: null, anchor: null, transform: null, hitSource: null, requested: false, locked: false };
-const draco = new DRACOLoader().setDecoderPath('https://unpkg.com/three@0.160.0/examples/jsm/libs/draco/gltf/');
+const draco = new DRACOLoader().setDecoderPath('https://unpkg.com/three@0.163.0/examples/jsm/libs/draco/gltf/');
 const BASE_SCALE = 0.5;
 const MIN_SCALE = 0.25, MAX_SCALE = 4;
 let userScale = 1, targetScale = 1, targetRotation = 0, rotation = 0;
