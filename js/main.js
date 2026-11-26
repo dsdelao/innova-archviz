@@ -25,7 +25,7 @@ let webXR = false;
 
 // ── WebXR state ────────────────────────────────────────────────────────────
 const xr = { renderer: null, scene: null, camera: null, reticle: null, anchor: null, transform: null, hitSource: null, requested: false, locked: false };
-const draco = new DRACOLoader().setDecoderPath('https://unpkg.com/three@0.160.0/examples/jsm/libs/draco/gltf/');
+const draco = new DRACOLoader().setDecoderPath('https://unpkg.com/three@0.163.0/examples/jsm/libs/draco/gltf/');
 const BASE_SCALE = 0.5;
 const MIN_SCALE = 0.25, MAX_SCALE = 4;
 let userScale = 1, targetScale = 1, targetRotation = 0, rotation = 0;
@@ -288,23 +288,23 @@ function openModelViewer() {
 }
 
 // ── Eventos ────────────────────────────────────────────────────────────────
-el.startBtn.addEventListener('click', () => { hide(el.start); show(el.model); updateCarousel(); });
-el.backBtn.addEventListener('click', () => { hide(el.model); show(el.start); });
-el.prev.addEventListener('click', () => goTo(current - 1));
-el.next.addEventListener('click', () => goTo(current + 1));
-el.arBtn.addEventListener('click', () => (webXR ? startXR() : openModelViewer()));
-el.arExit.addEventListener('click', () => xr.renderer?.xr.getSession()?.end());
+el.startBtn?.addEventListener('click', () => { hide(el.start); show(el.model); updateCarousel(); });
+el.backBtn?.addEventListener('click', () => { hide(el.model); show(el.start); });
+el.prev?.addEventListener('click', () => goTo(current - 1));
+el.next?.addEventListener('click', () => goTo(current + 1));
+el.arBtn?.addEventListener('click', () => (webXR ? startXR() : openModelViewer()));
+el.arExit?.addEventListener('click', () => xr.renderer?.xr.getSession()?.end());
 
 // Gestos en el canvas del renderer (no en capa aparte)
 document.addEventListener('DOMContentLoaded', () => {
-  // El canvas se crea dinámicamente; delegamos en el contenedor.
+  if (!el.arScreen) return;
   el.arScreen.addEventListener('touchstart', onTouchStart, { passive: false });
   el.arScreen.addEventListener('touchmove', onTouchMove, { passive: false });
   el.arScreen.addEventListener('touchend', onTouchEnd, { passive: false });
   el.arScreen.addEventListener('touchcancel', () => (gesture = null), { passive: true });
 });
 
-el.arModel.addEventListener('ar-status', ({ detail }) => {
+el.arModel?.addEventListener('ar-status', ({ detail }) => {
   if (detail.status === 'not-presenting' || detail.status === 'session-ended') {
     hide(el.arContainer);
     show(el.model);
@@ -313,11 +313,11 @@ el.arModel.addEventListener('ar-status', ({ detail }) => {
 
 // Carrusel táctil (usa pointer events, más limpio)
 let dragX = null;
-el.track.addEventListener('pointerdown', (e) => (dragX = e.clientX));
-el.track.addEventListener('pointerup', (e) => {
+el.track?.addEventListener('pointerdown', (e) => (dragX = e.clientX));
+el.track?.addEventListener('pointerup', (e) => {
   if (dragX !== null && Math.abs(dragX - e.clientX) > 40) goTo(current + (dragX > e.clientX ? 1 : -1));
   dragX = null;
 });
 
 initCarousel();
-detectCapabilities();
+detectCapabilities(); 
