@@ -21,6 +21,15 @@
     <script type="importmap">
         {"imports":{"three":"https://unpkg.com/three@0.163.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.163.0/examples/jsm/"}}
     </script>
+    <script>
+      (function () {
+        const originalError = console.error;
+        console.error = function (...args) {
+          if (typeof args[0] === 'string' && args[0].includes('Mesh is missing primitive index association')) return;
+          return originalError.apply(console, args);
+        };
+      })();
+    </script>
     <script type="module" src="https://unpkg.com/@google/model-viewer@3.5.0/dist/model-viewer-module.min.js"></script>
 </head>
 
