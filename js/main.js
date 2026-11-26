@@ -303,7 +303,6 @@ document.addEventListener('DOMContentLoaded', () => {
   el.arScreen.addEventListener('touchend', onTouchEnd, { passive: false });
   el.arScreen.addEventListener('touchcancel', () => (gesture = null), { passive: true });
 });
-});
 
 el.arModel?.addEventListener('ar-status', ({ detail }) => {
   if (detail.status === 'not-presenting' || detail.status === 'session-ended') {
