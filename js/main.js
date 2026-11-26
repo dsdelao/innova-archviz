@@ -17,19 +17,44 @@ const el = {
   name: $('model-name'), desc: $('model-desc'), index: $('current-index'),
   total: $('total-models'), arModel: $('ar-model'), arExit: $('ar-exit-btn'),
   arText: $('ar-tutorial-text'), arDot: $('ar-status-dot'), arName: $('ar-model-name'),
-  gesture: $('ar-gesture-layer'),
 };
 
 let current = 0;
 let webXR = false;
 
 // ── WebXR state ────────────────────────────────────────────────────────────
-const xr = { renderer: null, scene: null, camera: null, reticle: null, anchor: null, transform: null, hitSource: null, requested: false, locked: false };
-const draco = new DRACOLoader().setDecoderPath('https://unpkg.com/three@0.160.0/examples/jsm/libs/draco/gltf/');
+const xr = {
+  renderer: null, scene: null, camera: null, reticle: null,
+  anchor: null, transform: null, hitSource: null,
+  requested: false, locked: false,
+};
+
+// ⚡ Draco local: sin dependencias externas, carga instantánea desde tu servidor
+const draco = new DRACOLoader().setDecoderPath('./assets/draco/');
+
 const BASE_SCALE = 0.5;
 const MIN_SCALE = 0.25, MAX_SCALE = 4;
+const LERP = 0.25;
 let userScale = 1, targetScale = 1, targetRotation = 0, rotation = 0;
 let gesture = null;
+
+// ── Precarga: descarga el .glb mientras el usuario navega el carrusel ──────
+const preloaded = new Map();
+
+function preloadXRModel(src) {
+  if (preloaded.has(src)) return preloaded.get(src);
+  const loader = new GLTFLoader().setDRACOLoader(draco);
+  const promise = loader.loadAsync(src).catch((err) => {
+    console.warn('Preload falló:', err);
+    return null;
+  });
+  preloaded.set(src, promise);
+  return promise;
+}
+
+function schedulePreload() {
+  preloadXRModel(MODELS[current].src);
+}
 
 // ── Utilidades ─────────────────────────────────────────────────────────────
 const show = (e) => (e.hidden = false);
@@ -64,6 +89,7 @@ function updateCarousel() {
 function goTo(i) {
   current = Math.max(0, Math.min(i, MODELS.length - 1));
   updateCarousel();
+  schedulePreload();
 }
 
 function initCarousel() {
@@ -77,6 +103,7 @@ function initCarousel() {
     el.dots.appendChild(d);
   });
   updateCarousel();
+  schedulePreload();
 }
 
 // ── WebXR: setup ───────────────────────────────────────────────────────────
@@ -125,11 +152,11 @@ function setReticleLocked(locked) {
   el.arText.textContent = locked ? 'Superficie detectada — toca para colocar' : 'Mueve tu cámara para escanear la superficie';
 }
 
-// ── WebXR: modelo ──────────────────────────────────────────────────────────
+// ── WebXR: modelo (usa precarga) ───────────────────────────────────────────
 async function loadXRModel() {
   if (xr.anchor) xr.scene.remove(xr.anchor);
-  const loader = new GLTFLoader().setDRACOLoader(draco);
-  const gltf = await loader.loadAsync(MODELS[current].src);
+  const gltf = await preloadXRModel(MODELS[current].src);
+  if (!gltf) throw new Error('Modelo no disponible');
 
   xr.anchor = new THREE.Group();
   xr.anchor.matrixAutoUpdate = false;
@@ -147,7 +174,9 @@ async function loadXRModel() {
 // ── WebXR: loop ────────────────────────────────────────────────────────────
 function onXRFrame(_t, frame) {
   const session = xr.renderer.xr.getSession();
+  if (!session) { xr.renderer.render(xr.scene, xr.camera); return; }
   const refSpace = xr.renderer.xr.getReferenceSpace();
+  if (!refSpace) { xr.renderer.render(xr.scene, xr.camera); return; }
 
   if (!xr.requested) {
     xr.requested = true;
@@ -169,10 +198,9 @@ function onXRFrame(_t, frame) {
     }
   }
 
-  // Suavizado: interpolamos escala y rotación hacia el objetivo
   if (xr.transform) {
-    userScale += (targetScale - userScale) * 0.15;
-    rotation += (targetRotation - rotation) * 0.15;
+    userScale += (targetScale - userScale) * LERP;
+    rotation += (targetRotation - rotation) * LERP;
     xr.transform.scale.setScalar(BASE_SCALE * userScale);
     xr.transform.rotation.y = rotation;
   }
@@ -181,7 +209,6 @@ function onXRFrame(_t, frame) {
 }
 
 // ── WebXR: gestos suaves ───────────────────────────────────────────────────
-// Sin capa separada: usamos el propio canvas del renderer.
 function dist(a, b) { return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY); }
 
 function onTouchStart(e) {
@@ -189,7 +216,10 @@ function onTouchStart(e) {
     e.preventDefault();
     gesture = { type: 'pinch', dist: dist(e.touches[0], e.touches[1]), scale: targetScale };
   } else if (e.touches.length === 1) {
-    gesture = { type: 'one', x: e.touches[0].clientX, rotation: targetRotation };
+    gesture = {
+      type: 'one', x: e.touches[0].clientX, y: e.touches[0].clientY,
+      rotation: targetRotation, time: performance.now(),
+    };
   }
 }
 
@@ -199,16 +229,15 @@ function onTouchMove(e) {
     e.preventDefault();
     const ratio = dist(e.touches[0], e.touches[1]) / gesture.dist;
     targetScale = THREE.MathUtils.clamp(gesture.scale * ratio, MIN_SCALE, MAX_SCALE);
-    el.arText.textContent = `Escala: ${Math.round(BASE_SCALE * targetScale * 100)}%`;
     return;
   }
   if (e.touches.length === 1 && gesture.type === 'one' && xr.anchor?.visible) {
     const dx = e.touches[0].clientX - gesture.x;
-    if (Math.abs(dx) < 6) return;
-    e.preventDefault();
-    gesture.type = 'rotate';
     targetRotation = gesture.rotation + dx * 0.012;
-    el.arText.textContent = 'Rotando modelo…';
+    if (Math.abs(dx) > 6) {
+      e.preventDefault();
+      gesture.type = 'rotate';
+    }
   }
 }
 
@@ -218,8 +247,8 @@ function onTouchEnd(e) {
   gesture = null;
   if (g.type === 'one') {
     const t = e.changedTouches[0];
-    const move = Math.hypot(t.clientX - g.x, t.clientY - (g.y || 0));
-    const elapsed = performance.now() - (g.time || 0);
+    const move = Math.hypot(t.clientX - g.x, t.clientY - g.y);
+    const elapsed = performance.now() - g.time;
     if (elapsed < 350 && move < 18) placeModel();
   }
 }
@@ -229,7 +258,7 @@ function placeModel() {
   xr.anchor.visible = true;
   xr.anchor.matrix.copy(xr.reticle.matrix);
   xr.anchor.matrixWorldNeedsUpdate = true;
-  el.arText.textContent = 'Modelo colocado — toca para moverlo, dos dedos para escalar.';
+  el.arText.textContent = 'Modelo colocado — pellizca para escalar, arrastra para rotar.';
 }
 
 // ── WebXR: ciclo de vida ───────────────────────────────────────────────────
@@ -254,6 +283,9 @@ async function startXR() {
     label.textContent = 'Abriendo AR…';
     initXR();
 
+    // ⚡ Carga del modelo en paralelo con la petición de sesión
+    const modelPromise = loadXRModel();
+
     const session = await navigator.xr.requestSession('immersive-ar', {
       requiredFeatures: ['hit-test'],
       optionalFeatures: ['dom-overlay'],
@@ -264,8 +296,10 @@ async function startXR() {
     await xr.renderer.xr.setSession(session);
     setReticleLocked(false);
     xr.renderer.setAnimationLoop(onXRFrame);
-    el.arText.textContent = 'Cargando modelo…';
-    await loadXRModel();
+
+    el.arText.textContent = 'Preparando modelo…';
+    await modelPromise;
+    el.arText.textContent = 'Apunta a una superficie plana y toca para colocar.';
   } catch (err) {
     console.error('WebXR error:', err);
     el.arNote.textContent = 'No se pudo iniciar AR. Permite la cámara en Chrome y usa HTTPS.';
@@ -288,21 +322,18 @@ function openModelViewer() {
 }
 
 // ── Eventos ────────────────────────────────────────────────────────────────
-el.startBtn.addEventListener('click', () => { hide(el.start); show(el.model); updateCarousel(); });
+el.startBtn.addEventListener('click', () => { hide(el.start); show(el.model); updateCarousel(); schedulePreload(); });
 el.backBtn.addEventListener('click', () => { hide(el.model); show(el.start); });
 el.prev.addEventListener('click', () => goTo(current - 1));
 el.next.addEventListener('click', () => goTo(current + 1));
 el.arBtn.addEventListener('click', () => (webXR ? startXR() : openModelViewer()));
 el.arExit.addEventListener('click', () => xr.renderer?.xr.getSession()?.end());
 
-// Gestos en el canvas del renderer (no en capa aparte)
-document.addEventListener('DOMContentLoaded', () => {
-  // El canvas se crea dinámicamente; delegamos en el contenedor.
-  el.arScreen.addEventListener('touchstart', onTouchStart, { passive: false });
-  el.arScreen.addEventListener('touchmove', onTouchMove, { passive: false });
-  el.arScreen.addEventListener('touchend', onTouchEnd, { passive: false });
-  el.arScreen.addEventListener('touchcancel', () => (gesture = null), { passive: true });
-});
+// Gestos AR
+el.arScreen.addEventListener('touchstart', onTouchStart, { passive: false });
+el.arScreen.addEventListener('touchmove', onTouchMove, { passive: false });
+el.arScreen.addEventListener('touchend', onTouchEnd, { passive: false });
+el.arScreen.addEventListener('touchcancel', () => (gesture = null), { passive: true });
 
 el.arModel.addEventListener('ar-status', ({ detail }) => {
   if (detail.status === 'not-presenting' || detail.status === 'session-ended') {
@@ -311,13 +342,31 @@ el.arModel.addEventListener('ar-status', ({ detail }) => {
   }
 });
 
-// Carrusel táctil (usa pointer events, más limpio)
+// ── Carrusel: swipe SOLO fuera del model-viewer ────────────────────────────
 let dragX = null;
-el.track.addEventListener('pointerdown', (e) => (dragX = e.clientX));
+let dragFromModel = false;
+
+el.track.addEventListener('pointerdown', (e) => {
+  dragFromModel = e.target.closest('model-viewer') !== null;
+  dragX = dragFromModel ? null : e.clientX;
+}, { passive: true });
+
 el.track.addEventListener('pointerup', (e) => {
-  if (dragX !== null && Math.abs(dragX - e.clientX) > 40) goTo(current + (dragX > e.clientX ? 1 : -1));
+  if (dragFromModel || dragX === null) {
+    dragX = null;
+    dragFromModel = false;
+    return;
+  }
+  if (Math.abs(dragX - e.clientX) > 40) {
+    goTo(current + (dragX > e.clientX ? 1 : -1));
+  }
   dragX = null;
-});
+}, { passive: true });
+
+el.track.addEventListener('pointercancel', () => {
+  dragX = null;
+  dragFromModel = false;
+}, { passive: true });
 
 initCarousel();
 detectCapabilities();
